@@ -37,11 +37,16 @@ jobs:
 
       - name: Build universal binary
         env:
-          CGO_ENABLED: "0"
+          CGO_ENABLED: "1"
         run: |
           mkdir -p dist
-          GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/bin-amd64 .
-          GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o dist/bin-arm64 .
+          SDKROOT=$(xcrun --sdk macosx --show-sdk-path)
+          GOOS=darwin GOARCH=amd64 SDKROOT="$SDKROOT" \
+            CC="clang -arch x86_64" CXX="clang++ -arch x86_64" \
+            go build -trimpath -ldflags="-s -w" -o dist/bin-amd64 .
+          GOOS=darwin GOARCH=arm64 SDKROOT="$SDKROOT" \
+            CC="clang -arch arm64" CXX="clang++ -arch arm64" \
+            go build -trimpath -ldflags="-s -w" -o dist/bin-arm64 .
           lipo -create -output dist/JudgementDice dist/bin-amd64 dist/bin-arm64
           rm dist/bin-amd64 dist/bin-arm64
           file dist/JudgementDice
