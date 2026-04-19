@@ -37,6 +37,19 @@ go run .
 └── internal/game/       # ゲームロジック（Dice / Duel / Jenga / Effects）
 ```
 
+## Web 版
+
+- 公開 URL: https://rin2yh.github.io/judgement-dice/
+- `main` へ push すると GitHub Actions が wasm ビルド＆ GitHub Pages へ自動デプロイする。
+- ローカル検証:
+
+```sh
+GOOS=js GOARCH=wasm go build -o web/main.wasm ./
+cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" web/
+(cd web && python3 -m http.server 8080)
+# ブラウザで http://localhost:8080/ を開く
+```
+
 ## テスト
 
 ```sh
