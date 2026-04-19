@@ -28,12 +28,14 @@ const (
 	sceneTitle scene = iota
 	sceneEffect
 	sceneDuel
+	sceneJenga
 )
 
 type Game struct {
 	scene scene
 	dice  *Dice
 	duel  *Duel
+	jenga *Jenga
 	face  text.Face
 }
 
@@ -42,6 +44,7 @@ func New() *Game {
 		scene: sceneTitle,
 		dice:  NewDice(),
 		duel:  NewDuel(),
+		jenga: NewJenga(),
 		face:  text.NewGoXFace(bitmapfont.FaceEA),
 	}
 }
@@ -54,6 +57,9 @@ func (g *Game) Update() error {
 		}
 		if inpututil.IsKeyJustPressed(ebiten.Key2) {
 			g.scene = sceneDuel
+		}
+		if inpututil.IsKeyJustPressed(ebiten.Key3) {
+			g.scene = sceneJenga
 		}
 	case sceneEffect:
 		if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
@@ -69,6 +75,13 @@ func (g *Game) Update() error {
 			return nil
 		}
 		g.duel.Update()
+	case sceneJenga:
+		if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+			g.jenga.Reset()
+			g.scene = sceneTitle
+			return nil
+		}
+		g.jenga.Update()
 	}
 	return nil
 }
@@ -104,6 +117,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		g.drawEffectScene(screen)
 	case sceneDuel:
 		g.drawDuelScene(screen)
+	case sceneJenga:
+		g.drawJengaScene(screen)
 	}
 }
 
@@ -111,7 +126,8 @@ func (g *Game) drawTitleScene(screen *ebiten.Image) {
 	drawText(screen, g.face, "ジャッジメントダイス", screenWidth/2, 80, titleColor)
 	drawText(screen, g.face, "1: 遊戯王ジャッジメントダイス", screenWidth/2, 200, textColor)
 	drawText(screen, g.face, "2: タンクトップ小隊のジャッジメントダイス", screenWidth/2, 240, textColor)
-	drawText(screen, g.face, "1 / 2 を押してね", screenWidth/2, screenHeight-60, hintColor)
+	drawText(screen, g.face, "3: タンクトップ小隊ジェンガモード", screenWidth/2, 280, textColor)
+	drawText(screen, g.face, "1 / 2 / 3 を押してね", screenWidth/2, screenHeight-60, hintColor)
 }
 
 func (g *Game) drawEffectScene(screen *ebiten.Image) {
@@ -134,6 +150,11 @@ func (g *Game) drawEffectScene(screen *ebiten.Image) {
 func (g *Game) drawDuelScene(screen *ebiten.Image) {
 	g.duel.Draw(screen, g.face)
 	drawText(screen, g.face, "SPACE: Next    ESC: Title", screenWidth/2, screenHeight-24, hintColor)
+}
+
+func (g *Game) drawJengaScene(screen *ebiten.Image) {
+	g.jenga.Draw(screen, g.face)
+	drawText(screen, g.face, "SPACE: Roll    ESC: Title", screenWidth/2, screenHeight-24, hintColor)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
