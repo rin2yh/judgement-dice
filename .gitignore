@@ -30,7 +30,3 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
-
-# wasm build artifacts
-web/main.wasm
-web/wasm_exec.js
