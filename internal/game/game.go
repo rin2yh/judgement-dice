@@ -22,19 +22,58 @@ var (
 	hintColor  = color.RGBA{R: 0xa0, G: 0x94, B: 0xc8, A: 0xff}
 )
 
+type scene int
+
+const (
+	sceneTitle scene = iota
+	sceneEffect
+	sceneDuel
+)
+
 type Game struct {
-	dice *Dice
-	face text.Face
+	scene scene
+	dice  *Dice
+	duel  *Duel
+	face  text.Face
 }
 
 func New() *Game {
 	return &Game{
-		dice: NewDice(),
-		face: text.NewGoXFace(bitmapfont.FaceEA),
+		scene: sceneTitle,
+		dice:  NewDice(),
+		duel:  NewDuel(),
+		face:  text.NewGoXFace(bitmapfont.FaceEA),
 	}
 }
 
 func (g *Game) Update() error {
+	switch g.scene {
+	case sceneTitle:
+		if inpututil.IsKeyJustPressed(ebiten.Key1) {
+			g.scene = sceneEffect
+		}
+		if inpututil.IsKeyJustPressed(ebiten.Key2) {
+			g.scene = sceneDuel
+		}
+	case sceneEffect:
+		if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+			g.dice.Reset()
+			g.scene = sceneTitle
+			return nil
+		}
+		g.updateEffect()
+	case sceneDuel:
+		if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+			g.duel.Reset()
+			g.scene = sceneTitle
+			return nil
+		}
+		g.duel.Update()
+	}
+	return nil
+}
+
+func (g *Game) updateEffect() {
 	switch g.dice.State() {
 	case stateIdle:
 		if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
@@ -43,47 +82,69 @@ func (g *Game) Update() error {
 	case stateResult:
 		if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
 			g.dice.Roll()
-			return nil
+			return
 		}
 		if inpututil.IsKeyJustPressed(ebiten.KeyR) {
 			g.dice.Reset()
-			return nil
+			return
 		}
 		g.dice.Update()
 	default:
 		g.dice.Update()
 	}
-	return nil
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
 	screen.Fill(bgColor)
 
-	g.drawText(screen, "ジャッジメントダイス", screenWidth/2, 36, titleColor)
+	switch g.scene {
+	case sceneTitle:
+		g.drawTitleScene(screen)
+	case sceneEffect:
+		g.drawEffectScene(screen)
+	case sceneDuel:
+		g.drawDuelScene(screen)
+	}
+}
+
+func (g *Game) drawTitleScene(screen *ebiten.Image) {
+	drawText(screen, g.face, "ジャッジメントダイス", screenWidth/2, 80, titleColor)
+	drawText(screen, g.face, "1: 遊戯王ジャッジメントダイス", screenWidth/2, 200, textColor)
+	drawText(screen, g.face, "2: タンクトップ小隊のジャッジメントダイス", screenWidth/2, 240, textColor)
+	drawText(screen, g.face, "1 / 2 を押してね", screenWidth/2, screenHeight-60, hintColor)
+}
+
+func (g *Game) drawEffectScene(screen *ebiten.Image) {
+	drawText(screen, g.face, "ジャッジメントダイス", screenWidth/2, 36, titleColor)
 	g.dice.Draw(screen, screenWidth/2, 170)
 
 	switch g.dice.State() {
 	case stateResult:
-		g.drawText(screen, fmt.Sprintf("出目：%d", g.dice.Final()), screenWidth/2, 290, titleColor)
-		g.drawText(screen, Effects[g.dice.Final()], screenWidth/2, 330, textColor)
+		drawText(screen, g.face, fmt.Sprintf("出目：%d", g.dice.Final()), screenWidth/2, 290, titleColor)
+		drawText(screen, g.face, Effects[g.dice.Final()], screenWidth/2, 330, textColor)
 	case stateRolling:
-		g.drawText(screen, "ダイスを振っています……", screenWidth/2, 310, textColor)
+		drawText(screen, g.face, "ダイスを振っています……", screenWidth/2, 310, textColor)
 	default:
-		g.drawText(screen, "SPACE でダイスを振る", screenWidth/2, 310, textColor)
+		drawText(screen, g.face, "SPACE でダイスを振る", screenWidth/2, 310, textColor)
 	}
 
-	g.drawText(screen, "SPACE: Roll    R: Reset", screenWidth/2, screenHeight-24, hintColor)
+	drawText(screen, g.face, "SPACE: Roll    R: Reset    ESC: Title", screenWidth/2, screenHeight-24, hintColor)
+}
+
+func (g *Game) drawDuelScene(screen *ebiten.Image) {
+	g.duel.Draw(screen, g.face)
+	drawText(screen, g.face, "SPACE: Next    ESC: Title", screenWidth/2, screenHeight-24, hintColor)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return screenWidth, screenHeight
 }
 
-func (g *Game) drawText(screen *ebiten.Image, s string, x, y float64, clr color.Color) {
+func drawText(screen *ebiten.Image, face text.Face, s string, x, y float64, clr color.Color) {
 	op := &text.DrawOptions{}
 	op.GeoM.Translate(x, y)
 	op.ColorScale.ScaleWithColor(clr)
 	op.LayoutOptions.PrimaryAlign = text.AlignCenter
 	op.LayoutOptions.SecondaryAlign = text.AlignCenter
-	text.Draw(screen, s, g.face, op)
+	text.Draw(screen, s, face, op)
 }
