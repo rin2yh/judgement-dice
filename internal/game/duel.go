@@ -17,11 +17,9 @@ const (
 )
 
 type Duel struct {
-	phase    duelPhase
-	cpu      *Dice
-	player   *Dice
-	cpuFinal int
-	plyFinal int
+	phase  duelPhase
+	cpu    *Dice
+	player *Dice
 }
 
 func NewDuel() *Duel {
@@ -36,11 +34,13 @@ func (d *Duel) Reset() {
 	d.phase = duelIdle
 	d.cpu.Reset()
 	d.player.Reset()
-	d.cpuFinal = 0
-	d.plyFinal = 0
 }
 
 func (d *Duel) Update() {
+	if d.phase != duelIdle {
+		d.cpu.Update()
+		d.player.Update()
+	}
 	switch d.phase {
 	case duelIdle:
 		if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
@@ -49,16 +49,10 @@ func (d *Duel) Update() {
 			d.phase = duelRolling
 		}
 	case duelRolling:
-		d.cpu.Update()
-		d.player.Update()
 		if d.cpu.State() == stateResult && d.player.State() == stateResult {
-			d.cpuFinal = d.cpu.Final()
-			d.plyFinal = d.player.Final()
 			d.phase = duelJudgement
 		}
 	case duelJudgement:
-		d.cpu.Update()
-		d.player.Update()
 		if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
 			d.Reset()
 		}
@@ -84,14 +78,14 @@ func (d *Duel) Draw(screen *ebiten.Image, face text.Face) {
 	case duelRolling:
 		drawText(screen, face, "サイコロが回っている……", screenWidth/2, 330, textColor)
 	case duelJudgement:
-		drawText(screen, face, fmt.Sprintf("CPU：%d  /  YOU：%d", d.cpuFinal, d.plyFinal), screenWidth/2, 330, titleColor)
+		drawText(screen, face, fmt.Sprintf("CPU：%d  /  YOU：%d", d.cpu.Final(), d.player.Final()), screenWidth/2, 330, titleColor)
 		drawText(screen, face, d.Result(), screenWidth/2, 370, titleColor)
 		drawText(screen, face, "SPACE でもう一勝負", screenWidth/2, 400, textColor)
 	}
 }
 
 func (d *Duel) Result() string {
-	if d.plyFinal < d.cpuFinal {
+	if d.player.Final() < d.cpu.Final() {
 		return "あんたの勝ち！"
 	}
 	return "あんたの負け…"
