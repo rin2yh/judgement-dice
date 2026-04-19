@@ -1,0 +1,97 @@
+name: Release macOS
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag name (e.g. v0.1.0). 新しくタグを作ってリリースする場合に指定'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test
+        run: go test ./...
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "plist_version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build universal binary
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          mkdir -p dist
+          GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/bin-amd64 .
+          GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o dist/bin-arm64 .
+          lipo -create -output dist/JudgementDice dist/bin-amd64 dist/bin-arm64
+          rm dist/bin-amd64 dist/bin-arm64
+          file dist/JudgementDice
+
+      - name: Create .app bundle
+        run: |
+          APP="dist/JudgementDice.app"
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+          mv dist/JudgementDice "$APP/Contents/MacOS/JudgementDice"
+          chmod +x "$APP/Contents/MacOS/JudgementDice"
+          cat > "$APP/Contents/Info.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key><string>JudgementDice</string>
+            <key>CFBundleDisplayName</key><string>ジャッジメントダイス</string>
+            <key>CFBundleIdentifier</key><string>com.github.rin2yh.judgement-dice</string>
+            <key>CFBundleVersion</key><string>${{ steps.version.outputs.plist_version }}</string>
+            <key>CFBundleShortVersionString</key><string>${{ steps.version.outputs.plist_version }}</string>
+            <key>CFBundleExecutable</key><string>JudgementDice</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>LSMinimumSystemVersion</key><string>10.15</string>
+            <key>NSHighResolutionCapable</key><true/>
+          </dict>
+          </plist>
+          PLIST
+          codesign --force --deep --sign - "$APP"
+
+      - name: Package zip
+        id: package
+        run: |
+          cd dist
+          ZIP="JudgementDice-${{ steps.version.outputs.tag }}-macos-universal.zip"
+          ditto -c -k --sequesterRsrc --keepParent JudgementDice.app "$ZIP"
+          shasum -a 256 "$ZIP" > "${ZIP}.sha256"
+          echo "zip=dist/${ZIP}" >> "$GITHUB_OUTPUT"
+          echo "sha=dist/${ZIP}.sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            ${{ steps.package.outputs.zip }}
+            ${{ steps.package.outputs.sha }}
